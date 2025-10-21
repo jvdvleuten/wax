@@ -245,7 +245,6 @@ defmodule Wax.AttestationStatementFormat.TPM do
          alg_ecc_curve_id::unsigned-big-integer-size(16),
          # kdf
          @tpm_alg_null::unsigned-big-integer-size(16),
-         _unique_length::unsigned-big-integer-size(16),
          unique_x_length::unsigned-big-integer-size(16),
          unique_x::binary-size(unique_x_length),
          unique_y_length::unsigned-big-integer-size(16),
