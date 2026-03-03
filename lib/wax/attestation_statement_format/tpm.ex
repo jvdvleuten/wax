@@ -105,9 +105,8 @@ defmodule Wax.AttestationStatementFormat.TPM do
     "id:474F4F47"
   ]
 
-  # ++ ["id:FFFFF1D0"]
-
-  # fake ID for conformance tool testing, uncomment only for testing
+  # Fake manufacturer ID used by some FIDO Alliance conformance tests.
+  @conformance_fake_tpm_manufacturer_id "id:FFFFF1D0"
 
   @impl Wax.AttestationStatementFormat
 
@@ -336,7 +335,7 @@ defmodule Wax.AttestationStatementFormat.TPM do
          X509.Certificate.subject(cert) == {:rdnSequence, []} and
          parse_cert_utc_time(valid_from) < Wax.Utils.Timestamp.get_timestamp() and
          parse_cert_utc_time(valid_to) > Wax.Utils.Timestamp.get_timestamp() and
-         get_tcpaTpmManufacturer_field(cert) in @tpm_manufacturer_ids and
+         get_tcpaTpmManufacturer_field(cert) in tpm_manufacturer_ids() and
          {2, 23, 133, 8, 3} in key_ext_vals and
          Wax.Utils.Certificate.basic_constraints_ext_ca_component(cert) == false do
       # checking if oid of id-fido-gen-ce-aaguid is present and, if so, aaguid
@@ -355,6 +354,14 @@ defmodule Wax.AttestationStatementFormat.TPM do
       end
     else
       {:error, %Wax.AttestationVerificationError{type: :tpm, reason: :invalid_certificate}}
+    end
+  end
+
+  defp tpm_manufacturer_ids do
+    if Application.get_env(:wax_, :tpm_allow_conformance_fake_manufacturer, false) do
+      [@conformance_fake_tpm_manufacturer_id | @tpm_manufacturer_ids]
+    else
+      @tpm_manufacturer_ids
     end
   end
 
@@ -450,19 +457,40 @@ defmodule Wax.AttestationStatementFormat.TPM do
       |> elem(1)
       |> List.first()
 
-    Enum.find(
-      directory_name_val,
-      fn
-        {_, {2, 23, 133, 2, 1}, _} ->
-          true
+    directory_name_val
+    |> Enum.find(fn
+      {_, {2, 23, 133, 2, 1}, _} ->
+        true
 
-        _ ->
-          false
-      end
-    )
-    |> elem(2)
-    |> String.slice(2..-1//-1)
+      _ ->
+        false
+    end)
+    |> case do
+      nil -> ""
+      {_, _, value} -> normalize_directory_attribute_value(value)
+    end
   end
+
+  defp normalize_directory_attribute_value(<<12, _len, rest::binary>>), do: rest
+  defp normalize_directory_attribute_value(value) when is_binary(value), do: value
+
+  defp normalize_directory_attribute_value(value) when is_list(value) do
+    value
+    |> :erlang.iolist_to_binary()
+    |> normalize_directory_attribute_value()
+  end
+
+  defp normalize_directory_attribute_value({_, value}) do
+    normalize_directory_attribute_value(value)
+  end
+
+  defp normalize_directory_attribute_value({_, _, value}) do
+    normalize_directory_attribute_value(value)
+  end
+
+  # Unknown ASN.1 forms should not be coerced into potentially matching strings.
+  # Return an impossible manufacturer id so validation fails closed.
+  defp normalize_directory_attribute_value(_value), do: ""
 
   defp to_erlang_curve(@tpm_ecc_nist_p192), do: :pubkey_cert_records.namedCurves(:secp192r1)
   defp to_erlang_curve(@tpm_ecc_nist_p224), do: :pubkey_cert_records.namedCurves(:secp224r1)
