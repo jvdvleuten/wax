@@ -1,5 +1,6 @@
 defmodule Wax.MetadataTest do
   use ExUnit.Case, async: true
+  @moduletag :conformance
 
   alias Wax.Metadata
 
@@ -70,6 +71,42 @@ defmodule Wax.MetadataTest do
           "status" => "FIDO_CERTIFIED_L1"
         }
       ]
+    },
+    %{
+      "aaguid" => "00000000-0000-0000-0000-000000000005",
+      "statusReports" => [
+        %{
+          "effectiveDate" => "2024-01-01",
+          "status" => "USER_VERIFICATION_BYPASS"
+        }
+      ]
+    },
+    %{
+      "aaguid" => "00000000-0000-0000-0000-000000000006",
+      "statusReports" => [
+        %{
+          "effectiveDate" => "2024-01-01",
+          "status" => "ATTESTATION_KEY_COMPROMISE"
+        }
+      ]
+    },
+    %{
+      "aaguid" => "00000000-0000-0000-0000-000000000007",
+      "statusReports" => [
+        %{
+          "effectiveDate" => "2024-01-01",
+          "status" => "USER_KEY_REMOTE_COMPROMISE"
+        }
+      ]
+    },
+    %{
+      "aaguid" => "00000000-0000-0000-0000-000000000008",
+      "statusReports" => [
+        %{
+          "effectiveDate" => "2024-01-01",
+          "status" => "USER_KEY_PHYSICAL_COMPROMISE"
+        }
+      ]
     }
   ]
 
@@ -120,6 +157,46 @@ defmodule Wax.MetadataTest do
 
       assert {:error, %Wax.AuthenticatorStatusNotAcceptableError{}} =
                Metadata.get_by_aaguid(<<4::size(128)>>, challenge)
+    end
+
+    test "returns an error when authenticator has USER_VERIFICATION_BYPASS status" do
+      challenge = Wax.new_registration_challenge()
+
+      assert {:error,
+              %Wax.AuthenticatorStatusNotAcceptableError{
+                status: "USER_VERIFICATION_BYPASS"
+              }} =
+               Metadata.get_by_aaguid(<<5::size(128)>>, challenge)
+    end
+
+    test "returns an error when authenticator has ATTESTATION_KEY_COMPROMISE status" do
+      challenge = Wax.new_registration_challenge()
+
+      assert {:error,
+              %Wax.AuthenticatorStatusNotAcceptableError{
+                status: "ATTESTATION_KEY_COMPROMISE"
+              }} =
+               Metadata.get_by_aaguid(<<6::size(128)>>, challenge)
+    end
+
+    test "returns an error when authenticator has USER_KEY_REMOTE_COMPROMISE status" do
+      challenge = Wax.new_registration_challenge()
+
+      assert {:error,
+              %Wax.AuthenticatorStatusNotAcceptableError{
+                status: "USER_KEY_REMOTE_COMPROMISE"
+              }} =
+               Metadata.get_by_aaguid(<<7::size(128)>>, challenge)
+    end
+
+    test "returns an error when authenticator has USER_KEY_PHYSICAL_COMPROMISE status" do
+      challenge = Wax.new_registration_challenge()
+
+      assert {:error,
+              %Wax.AuthenticatorStatusNotAcceptableError{
+                status: "USER_KEY_PHYSICAL_COMPROMISE"
+              }} =
+               Metadata.get_by_aaguid(<<8::size(128)>>, challenge)
     end
   end
 end

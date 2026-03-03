@@ -208,8 +208,9 @@ defmodule Wax do
          :ok <- valid_origin?(client_data, challenge),
          client_data_hash = :crypto.hash(:sha256, client_data_json_raw),
          {:ok, att_data, _} <- Utils.CBOR.decode(attestation_object_cbor),
-         %{"fmt" => att_fmt, "authData" => auth_data_bin, "attStmt" => att_stmt} = att_data,
+         {:ok, {att_fmt, auth_data_bin, att_stmt}} <- extract_attestation_statement(att_data),
          {:ok, auth_data} <- Wax.AuthenticatorData.decode(auth_data_bin),
+         :ok <- attested_credential_data_present?(auth_data),
          :ok <- valid_rp_id?(auth_data, challenge),
          :ok <- user_present_flag_set?(auth_data, challenge),
          :ok <- maybe_user_verified_flag_set?(auth_data, challenge),
@@ -455,6 +456,24 @@ defmodule Wax do
       {:error, %Wax.InvalidClientDataError{reason: :rp_id_mismatch}}
     end
   end
+
+  defp extract_attestation_statement(%{
+         "fmt" => fmt,
+         "authData" => auth_data,
+         "attStmt" => att_stmt
+       })
+       when is_binary(fmt) and is_binary(auth_data) and is_map(att_stmt) do
+    {:ok, {fmt, auth_data, att_stmt}}
+  end
+
+  defp extract_attestation_statement(_), do: {:error, %Wax.InvalidCBORError{}}
+
+  defp attested_credential_data_present?(%Wax.AuthenticatorData{
+         attested_credential_data: %_{} = _acd
+       }),
+       do: :ok
+
+  defp attested_credential_data_present?(_), do: {:error, %Wax.InvalidAuthenticatorDataError{}}
 
   defp user_present_flag_set?(
          _auth_data,

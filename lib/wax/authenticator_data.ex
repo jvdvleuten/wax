@@ -109,10 +109,28 @@ defmodule Wax.AuthenticatorData do
 
   def decode(_), do: {:error, %Wax.InvalidAuthenticatorDataError{}}
 
-  defp attested_credential_data(bytes, true), do: Wax.AttestedCredentialData.decode(bytes)
+  defp attested_credential_data(bytes, true) do
+    case Wax.AttestedCredentialData.decode(bytes) do
+      {:ok, _} = ok ->
+        ok
+
+      _ ->
+        {:error, %Wax.InvalidAuthenticatorDataError{}}
+    end
+  end
+
   defp attested_credential_data(bytes, false), do: {:ok, {nil, bytes}}
 
-  defp extensions(bytes, true), do: Utils.CBOR.decode(bytes)
+  defp extensions(bytes, true) do
+    case Utils.CBOR.decode(bytes) do
+      {:ok, _extensions, _remaining_bytes} = ok ->
+        ok
+
+      _ ->
+        {:error, %Wax.InvalidAuthenticatorDataError{}}
+    end
+  end
+
   defp extensions(bytes, false), do: {:ok, nil, bytes}
 
   defp check_no_remaining_bytes(""), do: :ok

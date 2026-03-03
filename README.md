@@ -24,8 +24,14 @@ authentication scheme by a WebAuthn password-less authentication:
 
 - Support the FIDO2 standard (especially all types of attestation statement formats and
 all mandatory algorithms). See the "Support of FIDO2" section for further information
-- **Passes all the 170 tests** of the official test suite (tested using
-[WaxFidoTestSuiteServer](https://github.com/tanguilp/wax_fido_test_suite_server))
+- Currently passes the official FIDO Alliance suite in the latest validated run
+(166 tests, tested using
+[WaxFidoTestSuiteServer](https://github.com/tanguilp/wax_fido_test_suite_server)).
+For a reproducible current validation flow, see [CONFORMANCE.md](CONFORMANCE.md).
+- Includes an unofficial conformance regression track in CI
+(`mix test --only conformance`) to catch passkey regressions early
+- Includes browser E2E passkey checks with virtual authenticators
+(Playwright + local Wax harness under `e2e/`)
 - This library has **not** be reviewed by independent security / FIDO2 specialists - use
 it at your own risks or blindly trust its author!
 - This library does not come with a javascript library to handle WebAuthn calls

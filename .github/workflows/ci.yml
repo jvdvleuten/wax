@@ -1,0 +1,139 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - master
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  test:
+    name: Test (Elixir ${{ matrix.elixir }} / OTP ${{ matrix.otp }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - elixir: "1.17"
+            otp: "27"
+          - elixir: "1.19"
+            otp: "28"
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Elixir and OTP
+        uses: erlef/setup-beam@v1
+        with:
+          elixir-version: ${{ matrix.elixir }}
+          otp-version: ${{ matrix.otp }}
+
+      - name: Install dependencies
+        run: mix deps.get
+
+      - name: Run full test suite
+        run: mix test
+
+  unofficial-conformance:
+    name: Unofficial Conformance Regression
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Elixir and OTP
+        uses: erlef/setup-beam@v1
+        with:
+          elixir-version: "1.19"
+          otp-version: "28"
+
+      - name: Install dependencies
+        run: mix deps.get
+
+      - name: Run conformance-tagged tests
+        run: mix test --only conformance
+
+      - name: Run non-conformance tests
+        run: mix test --exclude conformance
+
+      - name: Check workspace hygiene
+        run: |
+          if [ -n "$(git status --porcelain)" ]; then
+            echo "Working tree is dirty after tests:"
+            git status --short
+            exit 1
+          fi
+
+  browser-e2e:
+    name: Browser E2E (Virtual Authenticator)
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Elixir and OTP
+        uses: erlef/setup-beam@v1
+        with:
+          elixir-version: "1.19"
+          otp-version: "28"
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install harness dependencies
+        working-directory: e2e/harness
+        run: mix deps.get
+
+      - name: Compile harness
+        working-directory: e2e/harness
+        run: MIX_ENV=test mix compile
+
+      - name: Install browser test dependencies
+        working-directory: e2e
+        run: npm ci
+
+      - name: Install Playwright browser
+        working-directory: e2e
+        run: npx playwright install --with-deps chromium
+
+      - name: Run harness and Playwright E2E
+        run: |
+          set -euo pipefail
+          MIX_ENV=test mix e2e.server --host 127.0.0.1 --port 4100 > /tmp/wax-e2e-server.log 2>&1 &
+          SERVER_PID=$!
+          trap 'kill "$SERVER_PID" 2>/dev/null || true' EXIT
+
+          for i in $(seq 1 120); do
+            if curl -fsS http://localhost:4100/health >/dev/null; then
+              break
+            fi
+            sleep 1
+          done
+
+          if ! curl -fsS http://localhost:4100/health >/dev/null; then
+            echo "Harness failed to start"
+            cat /tmp/wax-e2e-server.log
+            exit 1
+          fi
+
+          cd ..
+          BASE_URL=http://localhost:4100 npm test
+        working-directory: e2e/harness
+
+      - name: Print harness log on failure
+        if: failure()
+        run: cat /tmp/wax-e2e-server.log
+
+      - name: Upload Playwright report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: e2e/playwright-report
+          if-no-files-found: ignore

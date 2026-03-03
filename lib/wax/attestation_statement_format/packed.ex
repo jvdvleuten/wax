@@ -367,7 +367,7 @@ defmodule Wax.AttestationStatementFormat.Packed do
     if att_stmt["alg"] == auth_data.attested_credential_data.credential_public_key[3] do
       :ok
     else
-      {:attestation_packed_algs_mismatch}
+      {:error, %Wax.AttestationVerificationError{type: :packed, reason: :alg_mismatch}}
     end
   end
 

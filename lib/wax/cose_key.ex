@@ -65,33 +65,38 @@ defmodule Wax.CoseKey do
   @doc false
   @spec verify(message :: binary(), t(), signature :: binary()) :: :ok | {:error, Exception.t()}
   def verify(msg, %{@alg => alg} = cose_key, sig) when alg in @pss_algs do
-    # Use PSS padding; requires workaround for https://bugs.erlang.org/browse/ERL-878
-    {:RSAPublicKey, n, e} = to_erlang_public_key(cose_key)
+    safe_signature_verify(fn ->
+      # Use PSS padding; requires workaround for https://bugs.erlang.org/browse/ERL-878
+      {:RSAPublicKey, n, e} = to_erlang_public_key(cose_key)
 
-    digest = to_erlang_digest(cose_key)
+      digest = to_erlang_digest(cose_key)
 
-    if :crypto.verify(:rsa, digest, msg, sig, [e, n], rsa_padding: :rsa_pkcs1_pss_padding) do
-      :ok
-    else
-      {:error, %Wax.InvalidSignatureError{}}
-    end
+      :crypto.verify(:rsa, digest, msg, sig, [e, n], rsa_padding: :rsa_pkcs1_pss_padding)
+    end)
   end
 
   def verify(msg, %{@alg => alg} = cose_key, sig)
       when alg in unquote(Map.keys(@cose_alg_string)) do
-    key = to_erlang_public_key(cose_key)
+    safe_signature_verify(fn ->
+      key = to_erlang_public_key(cose_key)
+      digest = to_erlang_digest(cose_key)
 
-    digest = to_erlang_digest(cose_key)
-
-    if :public_key.verify(msg, digest, sig, key) do
-      :ok
-    else
-      {:error, %Wax.InvalidSignatureError{}}
-    end
+      :public_key.verify(msg, digest, sig, key)
+    end)
   end
 
   def verify(_, _, _) do
     {:error, %Wax.UnsupportedSignatureAlgorithmError{}}
+  end
+
+  defp safe_signature_verify(fun) do
+    if fun.() do
+      :ok
+    else
+      {:error, %Wax.InvalidSignatureError{}}
+    end
+  rescue
+    _ -> {:error, %Wax.InvalidSignatureError{}}
   end
 
   @doc false

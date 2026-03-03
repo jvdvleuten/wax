@@ -23,3 +23,14 @@ erl_crash.dump
 webauthn-*.tar
 
 *.swp
+
+# Generated ASN.1 compiler output.
+/src/
+
+# Browser E2E artifacts.
+/e2e/node_modules/
+/e2e/playwright-report/
+/e2e/test-results/
+/e2e/harness/_build/
+/e2e/harness/deps/
+/e2e/harness/e2e_server.log

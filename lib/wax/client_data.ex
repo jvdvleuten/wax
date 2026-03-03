@@ -44,31 +44,54 @@ defmodule Wax.ClientData do
   @spec parse_raw_json(raw_string()) :: {:ok, t()} | {:error, Exception.t()}
   def parse_raw_json(client_data_json_raw) do
     with {:ok, client_data_map} <- Jason.decode(client_data_json_raw),
+         {:ok, type} <- parse_type(client_data_map["type"]),
+         {:ok, challenge} <- parse_challenge(client_data_map["challenge"]),
+         {:ok, origin} <- parse_origin(client_data_map["origin"]),
          {:ok, maybe_token_binding} <- parse_token_binding(client_data_map["tokenBinding"]) do
-      type =
-        case client_data_map["type"] do
-          "webauthn.create" ->
-            :create
-
-          "webauthn.get" ->
-            :get
-        end
-
       {:ok,
        %__MODULE__{
          type: type,
-         challenge: Base.url_decode64!(client_data_map["challenge"], padding: false),
-         origin: client_data_map["origin"],
+         challenge: challenge,
+         origin: origin,
          token_binding: maybe_token_binding
        }}
     else
       {:error, %Jason.DecodeError{}} ->
         {:error, %Wax.InvalidClientDataError{reason: :malformed_json}}
 
+      {:error, reason} when is_atom(reason) ->
+        {:error, %Wax.InvalidClientDataError{reason: reason}}
+
       error ->
         error
     end
   end
+
+  # Keep backward-compatible reason semantics by deferring "type" validation
+  # to register/authenticate flow (:create_type_expected/:get_type_expected).
+  defp parse_type("webauthn.create"), do: {:ok, :create}
+  defp parse_type("webauthn.get"), do: {:ok, :get}
+  defp parse_type(_), do: {:ok, :unknown}
+
+  defp parse_challenge(challenge) when is_binary(challenge) do
+    case Base.url_decode64(challenge, padding: false) do
+      {:ok, decoded} ->
+        {:ok, decoded}
+
+      :error ->
+        # Backward-compatible reason expected by downstream callers.
+        {:error, :challenge_mismatch}
+    end
+  end
+
+  defp parse_challenge(_), do: {:error, :challenge_mismatch}
+
+  defp parse_origin(origin) when is_binary(origin) and byte_size(origin) > 0 do
+    {:ok, origin}
+  end
+
+  # Backward-compatible reason expected by downstream callers.
+  defp parse_origin(_), do: {:error, :origin_mismatch}
 
   defp parse_token_binding(nil) do
     {:ok, nil}

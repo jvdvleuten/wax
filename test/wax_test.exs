@@ -1,5 +1,6 @@
 defmodule WaxTest do
   use ExUnit.Case, async: true
+  @moduletag :conformance
 
   test "valid packed attestation statement" do
     # from https://fidoalliance.org/specs/fido-v2.0-rd-20180702/fido-server-v2.0-rd-20180702.html#packed-attestation
